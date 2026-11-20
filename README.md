@@ -49,7 +49,8 @@ A tool works only when the token has the matching scope. Otherwise the tool retu
 - Each tool calls the Crisp REST API through Crisp's `crisp-api` client, with plugin-tier
   authentication.
 - Errors use the official text: `Got error reason: '<reason>'`.
-- Results contain the REST API data. The official server can shape its results differently.
+- Results contain the REST API data without `website_id` fields, because every tool targets the
+  configured workspace. The official server can shape its results differently.
 - `report_feedback_missing_tool` has no REST API route. It returns `sent: false` and a note.
 
 ## Development
