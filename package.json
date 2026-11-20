@@ -1,6 +1,6 @@
 {
   "name": "crisp-plugin-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP server with the same tools as Crisp's official MCP server, authenticated with a Crisp Marketplace plugin token.",
   "keywords": [
     "crisp",
