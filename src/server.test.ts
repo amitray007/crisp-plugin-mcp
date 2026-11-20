@@ -113,6 +113,16 @@ describe("tool calls", () => {
     expect(JSON.parse(result.text)).toEqual({ content: "# Hi" });
   });
 
+  it("leaves the workspace ID out of results at every depth", async () => {
+    const listConversations = vi
+      .fn<CrispCall>()
+      .mockResolvedValue([{ session_id: "s1", website_id: WEBSITE_ID, meta: { nickname: "Ana" } }]);
+    const client = await connect(fakeWebsite({ listConversations }));
+    const result = await callText(client, "list_latest_conversations", {});
+    expect(result.text).not.toContain(WEBSITE_ID);
+    expect(JSON.parse(result.text)).toEqual([{ session_id: "s1", meta: { nickname: "Ana" } }]);
+  });
+
   it("reports the next page while a page has results", async () => {
     const listConversations = vi.fn<CrispCall>().mockResolvedValue([{ session_id: "s1" }]);
     const client = await connect(fakeWebsite({ listConversations }));

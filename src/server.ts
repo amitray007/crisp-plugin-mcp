@@ -36,8 +36,14 @@ function textResult(text: string, isError = false): CallToolResult {
   return { ...(isError && { isError }), content: [{ type: "text", text }] };
 }
 
+// Every tool targets the configured workspace, so its ID adds nothing. Gateways such as Outpost
+// treat the configured ID as a credential and refuse results that repeat it.
+function omitWebsiteId(key: string, value: unknown): unknown {
+  return key === "website_id" ? undefined : value;
+}
+
 function jsonResult(value: unknown): CallToolResult {
-  return textResult(JSON.stringify(value ?? null));
+  return textResult(JSON.stringify(value ?? null, omitWebsiteId));
 }
 
 function compileValidators(tools: Tool[]): Map<string, z.ZodType> {
