@@ -1,0 +1,42 @@
+{
+  "name": "crisp-plugin-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server that mirrors Crisp's official MCP tools, authenticated with a Crisp plugin token",
+  "bin": {
+    "crisp-plugin-mcp": "dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "knip": "knip",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm knip",
+    "sync-tools": "tsx scripts/sync-tools.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
+    "crisp-api": "12.0.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@types/node": "26.6.6",
+    "knip": "6.46.1",
+    "oxfmt": "0.79.0",
+    "oxlint": "1.94.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.1.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,888 @@
+{
+  "instructions": "# Introduction\n\nThis server provides access to the authenticated Crisp workspace.\n\n# General instructions\n\n## Safety\n\nYou may use read-only discovery tools without confirmation when needed to complete the request. Do not retrieve advanced, broad, or sensitive configuration unless the user explicitly requests it or it is necessary for their request.\n\nPerform a write only after explicit user confirmation. A direct request that clearly specifies the intended change counts as confirmation. Otherwise, summarize the exact proposed change and ask for confirmation.\n\nBefore a destructive action, obtain two separate explicit confirmations. In the second confirmation, state the affected resource and that data loss can occur.\n\n## Tool calls\n\nUse read-only tools first when you need to identify a website, conversation, contact, or other resource. Do not guess resource IDs or workspace ownership. If discovery returns multiple plausible matches, ask the user to choose.\n\nSome list and search tools may return partial results or apply an internal page limit. Do not claim results are complete unless the tool explicitly says so. Offer additional retrieval only when the tool provides a page parameter or continuation value. You will not know if there are more results, unless you try the next page (only try if the previous page yielded at least 1 result). Stop when the next page has no result at all. Confirm with the user if paginating too far away (after looping on 5 pages, confirm to loop on next 5 pages — if you require it).\n\nIf a tool accepts a `page` input argument, and responds with a `pagination` output object, containing `pagination.is_partial_result = true`, then read `pagination.next_page` and use this as the next page for the `page` input argument if you need to paginate to the next page. Stop iterating on next page if `pagination.is_partial_result = false` or `pagination.next_page = null`.\n\n# Group instructions\n\nTools are grouped by the resource they touch; the largest groups are conversations, people, and helpdesk. Those group names are included in tool names, for example `send_conversation_message_text`.\n\n## Conversations\n\n- Conversations are identified by their `session_id`, which is an opaque identifier.\n- Discover the `session_id` first if the user does not explicitly provide it. Do not ask the user for a `session_id` if it is not provided; always discover it using list or search tools.\n\n## People\n\n- People CRM profiles are identified by a `people_id`, also referred to as `people_id_or_email`. This value accepts either an opaque identifier or an email address for the CRM contact. Prefer using the email address unless you already know the opaque identifier (`people_id`) from the contact list or search results.\n- If the user provides an email address, there is no need to discover the `people_id`.\n\n## Helpdesk\n\n- Helpdesk entries are identified by the tuple `(locale, section, tree_path)`. For English, the locale is `en`. The section is the content type, usually `articles`. The tree path is a filesystem-like path to a directory or file, usually a Markdown file such as `path/to/article.md`.\n- The user provides the locale and section, but you may need to discover the `tree_path`. To do so, call the list or search tree-path tools and descend through the results, as these routes are tree-path-prefix-based, like a file explorer on a PC where you open folders and subfolders.\n- When descending tree-path lists for discovery, generate the final tree path by concatenating each individual tree-path slug with slashes. For example, `first-level` and `second-level.md` become `first-level/second-level.md`; use this as the final `tree_path` value in tool calls.\n\n# Miscellaneous\n\nIf a user-requested action cannot be completed using the available tools, suggest that they use the `report_feedback_missing_tool` tool to report the issue to the Crisp team. Let them know that the Crisp team can quickly add tools to fill the gap. Provide a concise, auto-generated trace based on the context without leaking any private information. This will be used by the Crisp technical team to improve the MCP server.\n",
+  "tools": [
+    {
+      "name": "get_website_information",
+      "description": "Returns basic information for the current Crisp workspace.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_website_settings",
+      "description": "Returns the workspace's full settings. This advanced response may be large; use it when the user asks about workspace configuration or a specific setting.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_availability_status",
+      "description": "Returns the general workspace availability shown to visitors in the chatbox widget (online or offline).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_operators",
+      "description": "Lists the human operators who are members of the workspace.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_operators_active",
+      "description": "Lists workspace operators who are currently active in a Crisp app.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_visitors_count",
+      "description": "Returns the number of visitors currently active on the workspace's chatbox widget. This is not a count of visitors currently typing or actively chatting.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_visitors",
+      "description": "Lists visitors currently active on the workspace's chatbox widget.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_inboxes",
+      "description": "Lists the available workspace sub-inboxes, which group conversations together.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_latest_conversations",
+      "description": "Lists recent conversations for the workspace. Use the search_conversations tool when locating conversations by message content or segments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_conversations_at_page",
+      "description": "Lists conversations in the workspace for one specified page. This tool is paginated, more entries can thus be retrieved.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "default": 1,
+            "description": "The page number to list conversations at.",
+            "type": "number",
+            "minimum": 1
+          },
+          "inbox_id": {
+            "default": "all",
+            "description": "The inbox to list conversations from. Defaults to 'all' (includes all inboxes). Provide only when listing conversations from a specific inbox: an empty string for the Main inbox, '_internal:agent' for the Automated inbox, or a sub-inbox ID returned by list_inboxes.",
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "search_conversations",
+      "description": "Searches workspace conversations by message content or conversation segments. Use this when locating a conversation by content or segment rather than recency.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "search_query": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The search query to find matching conversations (searches in metas and messages)."
+          },
+          "search_in": {
+            "default": "text",
+            "description": "What to search in (use 'text' to search in messages).",
+            "type": "string",
+            "enum": [
+              "text",
+              "segments"
+            ]
+          }
+        },
+        "required": [
+          "search_query"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_conversation",
+      "description": "Returns detailed data and metadata for one conversation. This response may be verbose; use the list_latest_conversation_messages tool if you need messages from that conversation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "send_conversation_message_text",
+      "description": "Sends a customer-visible text message to the recipient in an existing conversation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 2,
+            "description": "The text content for the text message to send in the conversation."
+          }
+        },
+        "required": [
+          "session_id",
+          "text"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "send_conversation_message_note",
+      "description": "Adds an internal note to an existing conversation. Notes are visible only to workspace operators and are not sent to the recipient. They stay private to your team at any time.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 2,
+            "description": "The text content for the note message to send in the conversation."
+          },
+          "mentions": {
+            "description": "The operator identifiers to mention and notify (identifiers are 'user_id' from the list of operators).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "session_id",
+          "text"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "set_conversation_full_name",
+      "description": "Sets the contact's full name in a conversation's metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          },
+          "full_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new full name for the conversation."
+          }
+        },
+        "required": [
+          "session_id",
+          "full_name"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "set_conversation_email",
+      "description": "Sets the contact's email address in a conversation's metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "The new email address for the conversation."
+          }
+        },
+        "required": [
+          "session_id",
+          "email"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "set_conversation_phone",
+      "description": "Sets the contact's phone number in a conversation's metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          },
+          "phone": {
+            "type": "string",
+            "format": "e164",
+            "pattern": "^\\+[1-9]\\d{6,14}$",
+            "description": "The new phone number for the conversation."
+          }
+        },
+        "required": [
+          "session_id",
+          "phone"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "change_conversation_state",
+      "description": "Changes a conversation's state to resolved, unresolved, or pending.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          },
+          "state": {
+            "default": "resolved",
+            "description": "The new state for the conversation.",
+            "type": "string",
+            "enum": [
+              "pending",
+              "unresolved",
+              "resolved"
+            ]
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "move_conversation_inbox",
+      "description": "Moves a conversation to the specified inbox. Use the list_inboxes tool to discover a valid inbox_id when it is not already known.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          },
+          "inbox_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The identifier of the inbox to move the conversation to ('inbox_id' in the list of inboxes)."
+          }
+        },
+        "required": [
+          "session_id",
+          "inbox_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_latest_conversation_messages",
+      "description": "Lists recent messages for one conversation. Use this when recent context is sufficient instead of retrieving detailed conversation data.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The conversation session identifier ('session_id' value)."
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_people_profiles_at_page",
+      "description": "Lists CRM contacts in the workspace for one specified page. This tool is paginated, more entries can thus be retrieved.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "default": 1,
+            "description": "The page number to list people profiles at.",
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "search_people_profiles",
+      "description": "Searches CRM contacts by full name or email address. Use this to find a person record; use the search_conversations tool to find a conversation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "search_query": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The search query to filter people profiles by (eg. a name or email)."
+          }
+        },
+        "required": [
+          "search_query"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_people_profile",
+      "description": "Returns detailed data for one CRM contact. This response may be verbose; use the search_people_profiles tool first when the contact identifier is not known.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "people_id_or_email": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The CRM profile people identifier or email address ('people_id' value)."
+          }
+        },
+        "required": [
+          "people_id_or_email"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_people_profile_full_name",
+      "description": "Updates the full name of a specific CRM contact.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "people_id_or_email": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The CRM profile people identifier or email address ('people_id' value)."
+          },
+          "full_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new full name for the CRM profile."
+          }
+        },
+        "required": [
+          "people_id_or_email",
+          "full_name"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_people_profile_email",
+      "description": "Updates the email address of a specific CRM contact.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "people_id_or_email": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The CRM profile people identifier or email address ('people_id' value)."
+          },
+          "new_email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "The new email address for the CRM profile."
+          }
+        },
+        "required": [
+          "people_id_or_email",
+          "new_email"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_people_profile_phone",
+      "description": "Updates the phone number of a specific CRM contact.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "people_id_or_email": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The CRM profile people identifier or email address ('people_id' value)."
+          },
+          "phone": {
+            "type": "string",
+            "format": "e164",
+            "pattern": "^\\+[1-9]\\d{6,14}$",
+            "description": "The new phone number for the CRM profile."
+          }
+        },
+        "required": [
+          "people_id_or_email",
+          "phone"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_people_profile_segments",
+      "description": "Updates the segments of a specific CRM contact.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "people_id_or_email": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The CRM profile people identifier or email address ('people_id' value)."
+          },
+          "segments": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The new list of segments for the CRM profile."
+          }
+        },
+        "required": [
+          "people_id_or_email",
+          "segments"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_people_conversations",
+      "description": "Lists conversations linked to a CRM contact. Returns conversation session identifiers only; use a conversation tool to inspect their content or metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "people_id_or_email": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The CRM profile people identifier or email address ('people_id' value)."
+          }
+        },
+        "required": [
+          "people_id_or_email"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_helpdesk_information",
+      "description": "Returns basic Knowledge Base information, including its name and URL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_helpdesk_locales",
+      "description": "Lists the configured Knowledge Base locales and their public URLs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_helpdesk_pages",
+      "description": "Lists published Knowledge Base page URLs and their tree paths. Prefer the list_helpdesk_tree tool to discover tree_path values for file operations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_helpdesk_tree",
+      "description": "Lists the Knowledge Base file tree. Use it to discover valid tree_path values for file operations. Recursive traversal is needed to descend deeper in the tree, using the sub_path argument. Descend only if the user asks for a particular content.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "sub_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The sub-path on the Knowledge Base tree (file or directory)."
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "search_helpdesk_tree",
+      "description": "Searches the expanded Knowledge Base file tree by file title. Use it to locate a file when its path is unknown; no recursive traversal is needed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "search_query": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The search query to filter Knowledge Base tree files by (eg. a title)."
+          }
+        },
+        "required": [
+          "search_query"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "create_helpdesk_tree_path",
+      "description": "Creates a Knowledge Base file at the specified tree_path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "tree_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The file path on the Knowledge Base tree (Markdown file)."
+          }
+        },
+        "required": [
+          "tree_path"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "delete_helpdesk_tree_path",
+      "description": "Deletes the Knowledge Base file at the specified tree_path. Confirm the intended file and path before calling.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "tree_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The file path on the Knowledge Base tree (Markdown file)."
+          }
+        },
+        "required": [
+          "tree_path"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_helpdesk_tree_path_content",
+      "description": "Returns the content of the Knowledge Base file at the specified tree_path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "tree_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The file path on the Knowledge Base tree (Markdown file)."
+          }
+        },
+        "required": [
+          "tree_path"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_helpdesk_tree_path_content",
+      "description": "Updates the content of the Knowledge Base file at the specified tree_path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "tree_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The file path on the Knowledge Base tree (Markdown file)."
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new content of the tree path (in Markdown format)."
+          }
+        },
+        "required": [
+          "tree_path",
+          "content"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_helpdesk_tree_path_title",
+      "description": "Returns the title of the Knowledge Base file at the specified tree_path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "tree_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The file path on the Knowledge Base tree (Markdown file)."
+          }
+        },
+        "required": [
+          "tree_path"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_helpdesk_tree_path_title",
+      "description": "Updates the title in the metadata of the Knowledge Base file at the specified tree_path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "tree_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The file path on the Knowledge Base tree (Markdown file)."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new title of the tree path."
+          }
+        },
+        "required": [
+          "tree_path",
+          "title"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_helpdesk_tree_path_metadata",
+      "description": "Returns the whole metadata of the Knowledge Base file at the specified tree_path. Use the get_helpdesk_tree_path_title tool instead if you only need the title.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "default": "en",
+            "description": "The Knowledge Base locale code (eg. 'en' for English).",
+            "type": "string",
+            "minLength": 1
+          },
+          "section": {
+            "default": "articles",
+            "description": "The Knowledge Base section (for traditional articles: 'articles').",
+            "type": "string",
+            "enum": [
+              "articles"
+            ]
+          },
+          "tree_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The file path on the Knowledge Base tree (Markdown file)."
+          }
+        },
+        "required": [
+          "tree_path"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_helpdesk_settings",
+      "description": "Returns the Knowledge Base settings. This advanced response may be large; use it when the user asks about Knowledge Base configuration or a specific setting.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "report_feedback_missing_tool",
+      "description": "Reports feedback to the Crisp team about something missing or broken on this MCP server. This tool should be suggested to the user if the AI agent gets stuck. An action_trace should be provided.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_trace": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A short trace of the decision chain that was executed, provided by the LLM and not the user. This should not include any private information from the session, as this is shared with Crisp team."
+          }
+        },
+        "required": [
+          "action_trace"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  ]
+}
