@@ -1,5 +1,10 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 100,
-  "ignorePatterns": ["src/official-tools.json", "pnpm-lock.yaml"]
+  "ignorePatterns": [
+    "src/official-tools.json",
+    "pnpm-lock.yaml",
+    "CHANGELOG.md",
+    ".release-please-manifest.json"
+  ]
 }
