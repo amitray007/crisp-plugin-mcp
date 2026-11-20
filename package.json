@@ -1,11 +1,31 @@
 {
   "name": "crisp-plugin-mcp",
   "version": "0.1.0",
-  "private": true,
-  "description": "MCP server that mirrors Crisp's official MCP tools, authenticated with a Crisp plugin token",
+  "description": "MCP server with the same tools as Crisp's official MCP server, authenticated with a Crisp Marketplace plugin token.",
+  "keywords": [
+    "crisp",
+    "crisp-chat",
+    "customer-support",
+    "helpdesk",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "homepage": "https://github.com/amitray007/crisp-plugin-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/amitray007/crisp-plugin-mcp/issues"
+  },
+  "license": "MIT",
+  "author": "Amit Ray (https://github.com/amitray007)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amitray007/crisp-plugin-mcp.git"
+  },
   "bin": {
     "crisp-plugin-mcp": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -19,12 +39,14 @@
     "knip": "knip",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm knip",
     "sync-tools": "tsx scripts/sync-tools.ts",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "node scripts/smoke.ts",
+    "smoke:live": "tsx scripts/smoke-live.ts",
+    "prepack": "pnpm build"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "2.4.0",
-    "crisp-api": "12.0.2",
-    "zod": "4.6.7"
+    "@modelcontextprotocol/server": "^2.4.0",
+    "crisp-api": "^12.0.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.4.0",
@@ -38,5 +60,6 @@
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "packageManager": "pnpm@12.14.0"
 }

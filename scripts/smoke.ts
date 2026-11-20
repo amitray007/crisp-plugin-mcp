@@ -1,49 +1,70 @@
-import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+// Starts a built server over stdio with placeholder credentials and checks that it answers
+// initialize and lists the official tools. Usage: node scripts/smoke.ts [path/to/index.js]
+import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { createInterface } from "node:readline";
 
-// Calls only read-only tools against the live workspace configured in the environment.
-const READ_ONLY_CALLS: [string, Record<string, unknown>][] = [
-  ["get_website_information", {}],
-  ["list_latest_conversations", {}],
-  ["list_conversations_at_page", { page: 1 }],
-  ["search_conversations", { search_query: "feed" }],
-  ["list_helpdesk_locales", {}],
-  ["list_helpdesk_tree", {}],
-  ["search_helpdesk_tree", { search_query: "pixel" }],
-  ["list_operators", {}],
-];
+const readJson = (path: string) =>
+  JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8")) as Record<string, unknown>;
 
-const transport = new StdioClientTransport({
-  command: process.execPath,
-  args: ["dist/index.js"],
-  env: process.env as Record<string, string>,
+const { version } = readJson("../package.json") as { version: string };
+const expectedTools = (readJson("../src/official-tools.json") as { tools: unknown[] }).tools.length;
+const entry = process.argv[2] ?? "dist/index.js";
+
+const server = spawn(process.execPath, [entry], {
+  env: {
+    ...process.env,
+    CRISP_TOKEN_IDENTIFIER: "placeholder",
+    CRISP_TOKEN_KEY: "placeholder",
+    CRISP_WEBSITE_ID: "placeholder",
+  },
+  stdio: ["pipe", "pipe", "inherit"],
 });
-const client = new Client({ name: "crisp-plugin-mcp-smoke", version: "0.0.0" });
-await client.connect(transport);
+const timer = setTimeout(() => fail("timed out"), 10_000);
 
-const { tools } = await client.listTools();
-console.log(`tools/list: ${tools.length} tools`);
-
-async function call(name: string, args: Record<string, unknown>): Promise<string> {
-  const result = await client.callTool({ name, arguments: args });
-  const text = result.content.find((block) => block.type === "text")?.text ?? "";
-  console.log(`${result.isError ? "ERROR" : "ok   "} ${name}: ${text.slice(0, 90)}`);
-  return text;
+function fail(message: string): never {
+  console.error(`smoke test failed: ${message}`);
+  server.kill();
+  process.exit(1);
 }
 
-for (const [name, args] of READ_ONLY_CALLS) await call(name, args);
+function send(message: object): void {
+  server.stdin.write(`${JSON.stringify(message)}\n`);
+}
 
-const { pages } = JSON.parse(await call("list_helpdesk_pages", {})) as {
-  pages: { tree_path: string }[];
-};
-const article = pages[0]?.tree_path;
-if (article) {
-  for (const name of [
-    "get_helpdesk_tree_path_title",
-    "get_helpdesk_tree_path_metadata",
-    "get_helpdesk_tree_path_content",
-  ]) {
-    await call(name, { tree_path: article });
+const replies = new Map<number, { result?: Record<string, unknown> }>();
+createInterface({ input: server.stdout }).on("line", (line) => {
+  const reply = JSON.parse(line) as { id?: number; result?: Record<string, unknown> };
+  if (reply.id === undefined) return;
+  replies.set(reply.id, reply);
+  if (reply.id === 1) {
+    send({ jsonrpc: "2.0", method: "notifications/initialized" });
+    send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
   }
+  if (reply.id === 2) finish();
+});
+
+send({
+  jsonrpc: "2.0",
+  id: 1,
+  method: "initialize",
+  params: {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "smoke", version: "0.0.0" },
+  },
+});
+
+function finish(): void {
+  clearTimeout(timer);
+  const info = replies.get(1)?.result?.serverInfo as { version?: string } | undefined;
+  const tools = replies.get(2)?.result?.tools as unknown[] | undefined;
+  if (info?.version !== version) {
+    fail(`server reports version ${info?.version}, package.json has ${version}`);
+  }
+  if (tools?.length !== expectedTools) {
+    fail(`expected ${expectedTools} tools, got ${tools?.length}`);
+  }
+  console.log(`smoke test passed: version ${version}, ${tools.length} tools`);
+  server.kill();
 }
-await client.close();

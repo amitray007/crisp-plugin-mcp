@@ -1,9 +1,15 @@
+import { readFileSync } from "node:fs";
 import { type CallToolResult, Server, type Tool } from "@modelcontextprotocol/server";
 import * as z from "zod";
 import snapshot from "./official-tools.json" with { type: "json" };
 import type { ToolContext, ToolHandler } from "./tools/types.ts";
 
-const SERVER_INFO = { name: "crisp-plugin-mcp", version: "0.1.0", title: "Crisp MCP" };
+// package.json sits one level above both src/ and dist/.
+const { version } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
+
+const SERVER_INFO = { name: "crisp-plugin-mcp", version, title: "Crisp MCP" };
 
 const officialTools = snapshot.tools as Tool[];
 
